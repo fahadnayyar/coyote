@@ -1,8 +1,10 @@
 ﻿// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using Microsoft.Coyote.IO;
 using Microsoft.Coyote.Runtime;
 
 namespace Microsoft.Coyote.Testing.Systematic
@@ -49,6 +51,7 @@ namespace Microsoft.Coyote.Testing.Systematic
         internal override bool GetNextOperation(IEnumerable<AsyncOperation> ops, AsyncOperation current,
             bool isYielding, out AsyncOperation next)
         {
+            // System.Diagnostics.Debugger.Launch();
             var enabledOps = ops.Where(op => op.Status is AsyncOperationStatus.Enabled).ToList();
             if (enabledOps.Count is 0)
             {
@@ -60,6 +63,14 @@ namespace Microsoft.Coyote.Testing.Systematic
             next = enabledOps[idx];
 
             this.StepCount++;
+
+            // Console.WriteLine("***---------END: inside getOperations in RandomStrategy-----------***");
+            // Console.WriteLine("F_DEBUG: ops ==> " + ops.ToString());
+            // Console.WriteLine("F_DEBUG: current ==> " + current.ToString());
+            // Console.WriteLine("F_DEBUG: isYielding ==> " + isYielding.ToString());
+            // Console.WriteLine("F_DEBUG: next ==> " + next.ToString());
+            // Console.WriteLine("***---------START: inside getOperations in RandomStrategy-----------***");
+
             return true;
         }
 

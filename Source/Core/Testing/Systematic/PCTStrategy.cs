@@ -112,6 +112,13 @@ namespace Microsoft.Coyote.Testing.Systematic
             AsyncOperation highestEnabledOperation = this.GetEnabledOperationWithHighestPriority(enabledOps);
             next = enabledOps.First(op => op.Equals(highestEnabledOperation));
             this.StepCount++;
+
+            // Console.WriteLine("***---------END: inside getOperations in RandomStrategy-----------***");
+            // Console.WriteLine("F_DEBUG: ops ==> " + ops.ToString());
+            // Console.WriteLine("F_DEBUG: current ==> " + current.ToString());
+            // Console.WriteLine("F_DEBUG: isYielding ==> " + isYielding.ToString());
+            // Console.WriteLine("F_DEBUG: next ==> " + next.ToString());
+            // Console.WriteLine("***---------START: inside getOperations in RandomStrategy-----------***");
             return true;
         }
 
@@ -128,10 +135,20 @@ namespace Microsoft.Coyote.Testing.Systematic
             // Randomize the priority of all new operations.
             foreach (var op in ops.Where(op => !this.PrioritizedOperations.Contains(op)))
             {
-                // Randomly choose a priority for this operation.
-                int index = this.RandomValueGenerator.Next(this.PrioritizedOperations.Count) + 1;
+                TaskOperation top = (TaskOperation)op;
+                int index = 0;
+                if (!top.IsTaskRun)
+                {
+                    index = this.PrioritizedOperations.IndexOf(top) + 1;
+                }
+                else
+                {
+                    // Randomly choose a priority for this operation.
+                    index = this.RandomValueGenerator.Next(this.PrioritizedOperations.Count) + 1;
+                }
+
                 this.PrioritizedOperations.Insert(index, op);
-                Debug.WriteLine("<PCTLog> chose priority '{0}' for new operation '{1}'.", index, op.Name);
+                Console.WriteLine("<PCTLog> chose priority '{0}' for new operation '{1}'.", index, op.Name);
             }
         }
 

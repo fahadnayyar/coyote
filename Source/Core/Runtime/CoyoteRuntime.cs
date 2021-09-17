@@ -410,6 +410,7 @@ namespace Microsoft.Coyote.Runtime
                 op = new TaskOperation(operationId, $"Task({operationId})", this);
             }
 
+            op.Spawner = this.GetExecutingOperation<TaskOperation>();
             this.RegisterOperation(op);
             return op;
         }
@@ -478,6 +479,7 @@ namespace Microsoft.Coyote.Runtime
             cancellationToken.ThrowIfCancellationRequested();
 
             TaskOperation op = this.CreateTaskOperation();
+            op.IsTaskRun = true;
             var context = new OperationContext<Func<TResult>, TResult>(op, function, predecessor,
                 OperationExecutionOptions.None, cancellationToken);
             var task = new Task<TResult>(this.ExecuteOperation<Func<TResult>, TResult, TResult>, context, cancellationToken);

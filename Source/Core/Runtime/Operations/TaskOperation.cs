@@ -13,6 +13,9 @@ namespace Microsoft.Coyote.Runtime
     /// </summary>
     internal class TaskOperation : AsyncOperation
     {
+        public AsyncOperation Spawner;
+        public bool IsTaskRun = false;
+
         /// <summary>
         /// The runtime executing this operation.
         /// </summary>
