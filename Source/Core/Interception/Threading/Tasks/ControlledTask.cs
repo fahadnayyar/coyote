@@ -39,7 +39,7 @@ namespace Microsoft.Coyote.Interception
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Task Run(Action action, CancellationToken cancellationToken) => CoyoteRuntime.IsExecutionControlled ?
             CoyoteRuntime.Current.ScheduleAction(action, null, OperationContext.CreateOperationExecutionOptions(),
-                false, cancellationToken) :
+                false, cancellationToken, true) :
             Task.Run(FuzzingProvider.CreateAction(action), cancellationToken);
 
         /// <summary>
@@ -60,7 +60,7 @@ namespace Microsoft.Coyote.Interception
             if (CoyoteRuntime.IsExecutionControlled)
             {
                 var runtime = CoyoteRuntime.Current;
-                var task = runtime.ScheduleFunction(function, null, cancellationToken);
+                var task = runtime.ScheduleFunction(function, null, cancellationToken, true);
                 return runtime.UnwrapTask(task);
             }
 
@@ -85,7 +85,7 @@ namespace Microsoft.Coyote.Interception
             if (CoyoteRuntime.IsExecutionControlled)
             {
                 var runtime = CoyoteRuntime.Current;
-                var task = runtime.ScheduleFunction(function, null, cancellationToken);
+                var task = runtime.ScheduleFunction(function, null, cancellationToken, true);
                 return runtime.UnwrapTask(task);
             }
 
@@ -106,7 +106,7 @@ namespace Microsoft.Coyote.Interception
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Task<TResult> Run<TResult>(Func<TResult> function, CancellationToken cancellationToken) =>
             CoyoteRuntime.IsExecutionControlled ?
-            CoyoteRuntime.Current.ScheduleFunction(function, null, cancellationToken) :
+            CoyoteRuntime.Current.ScheduleFunction(function, null, cancellationToken, true) :
             Task.Run(FuzzingProvider.CreateFunc(function), cancellationToken);
 
         /// <summary>

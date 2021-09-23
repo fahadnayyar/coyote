@@ -29,6 +29,9 @@ namespace Microsoft.Coyote.Runtime
     /// </remarks>
     internal sealed class CoyoteRuntime : IDisposable
     {
+        private static readonly AsyncLocal<AsyncOperation> AsyncContext =
+            new AsyncLocal<AsyncOperation>(OnAsyncLocalAsyncContextValueChanged);
+
         /// <summary>
         /// Provides access to the runtime associated with each asynchronous control flow.
         /// </summary>
@@ -330,7 +333,7 @@ namespace Microsoft.Coyote.Runtime
             }
             else
             {
-                TaskOperation op = this.CreateTaskOperation();
+                TaskOperation op = this.CreateTaskOperation(false, true);
                 Task task = new Task(() =>
                 {
                     try
@@ -397,7 +400,7 @@ namespace Microsoft.Coyote.Runtime
         /// <summary>
         /// Creates a new task operation.
         /// </summary>
-        internal TaskOperation CreateTaskOperation(bool isDelay = false)
+        internal TaskOperation CreateTaskOperation(bool isDelay = false, bool isNewTaskSpwan = false)
         {
             ulong operationId = this.GetNextOperationId();
             TaskOperation op;
@@ -410,7 +413,28 @@ namespace Microsoft.Coyote.Runtime
                 op = new TaskOperation(operationId, $"Task({operationId})", this);
             }
 
-            op.Spawner = this.GetExecutingOperation<TaskOperation>();
+            try
+            {
+                if (isNewTaskSpwan)
+                {
+                    AsyncContext.Value = op;
+                    op.IsTaskRun = true;
+                }
+                else
+                {
+                    op.Spawner = AsyncContext.Value;
+                    /* put an assert or throw some exception telling that at this line AsyncContext.Value cannot be null,
+                     * becuase we do not expect continuations to not have a top level spawner
+                    */
+                }
+
+                // op.Spawner = this.GetExecutingOperation<TaskOperation>();
+            }
+            catch (Exception)
+            {
+                Console.WriteLine("EXCEPTION: in setting spawner!");
+            }
+
             this.RegisterOperation(op);
             return op;
         }
@@ -422,11 +446,11 @@ namespace Microsoft.Coyote.Runtime
         [DebuggerStepThrough]
 #endif
         internal Task ScheduleAction(Action action, Task predecessor, OperationExecutionOptions options,
-            bool isDelay = false, CancellationToken cancellationToken = default)
+            bool isDelay = false, CancellationToken cancellationToken = default, bool isNewTaskSpwan = false)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            TaskOperation op = this.CreateTaskOperation(isDelay);
+            TaskOperation op = this.CreateTaskOperation(isDelay, isNewTaskSpwan);
             var context = new OperationContext<Action, object>(op, action, predecessor, options, cancellationToken);
             var task = new Task(this.ExecuteOperation, context, cancellationToken);
             return this.ScheduleTaskOperation(op, task, context.ResultSource);
@@ -438,12 +462,12 @@ namespace Microsoft.Coyote.Runtime
 #if !DEBUG
         [DebuggerStepThrough]
 #endif
-        internal Task<Task> ScheduleFunction(Func<Task> function, Task predecessor, CancellationToken cancellationToken)
+        internal Task<Task> ScheduleFunction(Func<Task> function, Task predecessor, CancellationToken cancellationToken, bool isNewTaskSpwan = false)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             Task<Task> task = null;
-            TaskOperation op = this.CreateTaskOperation();
+            TaskOperation op = this.CreateTaskOperation(false, isNewTaskSpwan);
             var context = new AsyncOperationContext<Func<Task>, Task, Task>(op, function, task, predecessor,
                 OperationExecutionOptions.None, cancellationToken);
             task = new Task<Task>(this.ExecuteOperation<Func<Task>, Task, Task>, context, cancellationToken);
@@ -456,12 +480,12 @@ namespace Microsoft.Coyote.Runtime
 #if !DEBUG
         [DebuggerStepThrough]
 #endif
-        internal Task<Task<TResult>> ScheduleFunction<TResult>(Func<Task<TResult>> function, Task predecessor, CancellationToken cancellationToken)
+        internal Task<Task<TResult>> ScheduleFunction<TResult>(Func<Task<TResult>> function, Task predecessor, CancellationToken cancellationToken, bool isNewTaskSpwan = false)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             Task<TResult> task = null;
-            TaskOperation op = this.CreateTaskOperation();
+            TaskOperation op = this.CreateTaskOperation(false, isNewTaskSpwan);
             var context = new AsyncOperationContext<Func<Task<TResult>>, Task<TResult>, TResult>(op, function, task, predecessor,
                 OperationExecutionOptions.None, cancellationToken);
             task = new Task<TResult>(this.ExecuteOperation<Func<Task<TResult>>, Task<TResult>, TResult>, context, cancellationToken);
@@ -474,12 +498,20 @@ namespace Microsoft.Coyote.Runtime
 #if !DEBUG
         [DebuggerStepThrough]
 #endif
-        internal Task<TResult> ScheduleFunction<TResult>(Func<TResult> function, Task predecessor, CancellationToken cancellationToken)
+        internal Task<TResult> ScheduleFunction<TResult>(Func<TResult> function, Task predecessor, CancellationToken cancellationToken, bool isNewTaskSpwan = false)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            TaskOperation op = this.CreateTaskOperation();
-            op.IsTaskRun = true;
+            TaskOperation op = this.CreateTaskOperation(false, isNewTaskSpwan);
+            // try
+            // {
+            //     op.IsTaskRun = true;
+            // }
+            // catch (Exception)
+            // {
+            //     Console.WriteLine("EXCEPTION: in setting op.IsTaskRun!");
+            // }
+
             var context = new OperationContext<Func<TResult>, TResult>(op, function, predecessor,
                 OperationExecutionOptions.None, cancellationToken);
             var task = new Task<TResult>(this.ExecuteOperation<Func<TResult>, TResult, TResult>, context, cancellationToken);
@@ -720,7 +752,7 @@ namespace Microsoft.Coyote.Runtime
 
             // TODO: cache the dummy delay action to optimize memory.
             var options = OperationContext.CreateOperationExecutionOptions();
-            return this.ScheduleAction(() => { }, null, options, true, cancellationToken);
+            return this.ScheduleAction(() => { }, null, options, true, cancellationToken, false);
         }
 
         /// <summary>
@@ -2162,6 +2194,16 @@ namespace Microsoft.Coyote.Runtime
                 isBugFound = this.IsBugFound;
                 bugReport = this.BugReport;
                 unhandledException = this.UnhandledException;
+            }
+        }
+
+        private static void OnAsyncLocalAsyncContextValueChanged(AsyncLocalValueChangedArgs<AsyncOperation> args)
+        {
+            if (args.ThreadContextChanged && args.PreviousValue != null && args.CurrentValue != null)
+            {
+                // Restore the value if it changed due to a change in the thread context,
+                // but the previous and current value where not null.
+                AsyncContext.Value = args.PreviousValue;
             }
         }
 

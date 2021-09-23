@@ -108,9 +108,11 @@ namespace Microsoft.Coyote.Testing.Systematic
             this.SetNewOperationPriorities(enabledOps, current);
             this.DeprioritizeEnabledOperationWithHighestPriority(enabledOps, current, isYielding);
             this.DebugPrintOperationPriorityList();
+            this.DebugPrintEnabledOps(enabledOps);
 
             AsyncOperation highestEnabledOperation = this.GetEnabledOperationWithHighestPriority(enabledOps);
             next = enabledOps.First(op => op.Equals(highestEnabledOperation));
+            Console.WriteLine("<PCTLog> next operation scheduled is: '{0}'.", next);
             this.StepCount++;
 
             // Console.WriteLine("***---------END: inside getOperations in RandomStrategy-----------***");
@@ -137,14 +139,14 @@ namespace Microsoft.Coyote.Testing.Systematic
             {
                 TaskOperation top = (TaskOperation)op;
                 int index = 0;
-                if (!top.IsTaskRun)
-                {
-                    index = this.PrioritizedOperations.IndexOf(top) + 1;
-                }
-                else
+                if (top.IsTaskRun)
                 {
                     // Randomly choose a priority for this operation.
                     index = this.RandomValueGenerator.Next(this.PrioritizedOperations.Count) + 1;
+                }
+                else
+                {
+                    index = this.PrioritizedOperations.IndexOf(top.Spawner) + 1;
                 }
 
                 this.PrioritizedOperations.Insert(index, op);
@@ -274,6 +276,25 @@ namespace Microsoft.Coyote.Testing.Systematic
             this.StepCount = 0;
             this.PrioritizedOperations.Clear();
             this.PriorityChangePoints.Clear();
+        }
+
+        private void DebugPrintEnabledOps(List<AsyncOperation> ops)
+        {
+            if (Debug.IsEnabled)
+            {
+                Debug.Write("<PCTLog> enabled operation: ");
+                for (int idx = 0; idx < ops.Count; idx++)
+                {
+                    if (idx < ops.Count - 1)
+                    {
+                        Debug.Write("'{0}', ", ops[idx].Name);
+                    }
+                    else
+                    {
+                        Debug.WriteLine("'{0}'.", ops[idx].Name);
+                    }
+                }
+            }
         }
 
         /// <summary>
